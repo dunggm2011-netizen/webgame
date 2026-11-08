@@ -18,19 +18,17 @@
         .btn { padding: 15px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; width: 100%; margin-bottom: 10px; }
         .btn-primary { background: linear-gradient(180deg, #00b4db, #0083b0); color: #fff; }
         
-        /* MAIN CONTENT (Scrollable) */
+        /* MAIN CONTENT */
         .content-area { flex: 1; overflow-y: auto; padding: 15px; padding-bottom: 80px; display: none; }
         
-        /* HEADER */
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .balance-badge { background: #1d2b45; border: 1px solid var(--gold); border-radius: 20px; padding: 5px 15px; color: var(--gold); font-weight: bold; }
 
-        /* VIEWS */
         .view { display: none; }
         .view.active { display: block; animation: fadeIn 0.3s; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* GAME VIEW */
+        /* GAME */
         .timer-bar { background: #1a0006; border: 1px solid var(--red); color: var(--red); text-align: center; padding: 8px; border-radius: 8px; font-weight: bold; margin-bottom: 10px; }
         .mines-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; background: #0b1220; padding: 10px; border-radius: 15px; }
         .cell { aspect-ratio: 1; background: linear-gradient(145deg, #1e304d, #142136); border: 1px solid #2c4975; border-radius: 10px; display: flex; justify-content: center; align-items: center; font-family: 'Orbitron'; font-size: 20px; font-weight: 800; color: #4a6d9c; cursor: pointer; }
@@ -38,19 +36,19 @@
         .cell.gem { background: radial-gradient(circle, #004d40, #001a14); border-color: var(--green); color: var(--green); }
         .cell.bomb { background: radial-gradient(circle, #4d0011, #1a0006); border-color: var(--red); color: var(--red); }
 
-        /* DASHBOARD VIEW */
+        /* DASHBOARD */
         .dash-card { background: var(--card); padding: 20px; border-radius: 15px; border: 1px solid #1c3154; text-align: center; margin-bottom: 15px; }
         .dash-card h3 { color: var(--cyan); margin-bottom: 10px; }
         .dash-card input { width: 100%; padding: 12px; background: #090f1a; border: 1px solid #1e355c; color: #fff; border-radius: 8px; margin-bottom: 10px; outline: none;}
         .history-box { background: #090e17; border-radius: 8px; padding: 10px; font-size: 12px; height: 120px; overflow-y: auto; color: #5c7ca6; }
 
-        /* BOTTOM NAVIGATION */
+        /* BOTTOM NAV */
         .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 65px; background: #0e1726; border-top: 1px solid #203556; display: flex; justify-content: space-around; align-items: center; z-index: 50; }
         .nav-item { display: flex; flex-direction: column; align-items: center; font-size: 10px; color: #6b85ad; cursor: pointer; gap: 4px; }
         .nav-item.active { color: var(--cyan); text-shadow: 0 0 10px var(--cyan); }
         .nav-item i { font-size: 20px; font-style: normal; }
 
-        /* FLOATING CHAT */
+        /* CHAT */
         .chat-bubble { position: fixed; bottom: 80px; right: 20px; width: 50px; height: 50px; background: var(--cyan); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 24px; cursor: grab; z-index: 60; box-shadow: 0 4px 15px rgba(0, 243, 255, 0.4); }
         .chat-panel { position: fixed; bottom: 140px; right: 20px; width: 300px; height: 350px; background: var(--card); border: 1px solid var(--cyan); border-radius: 15px; display: none; flex-direction: column; z-index: 60; overflow: hidden; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
         .chat-panel.active { display: flex; }
@@ -66,7 +64,6 @@
 </head>
 <body>
 
-    <!-- LOGIN -->
     <div id="loginScreen">
         <h2 style="text-align:center; color:var(--gold); font-family:Orbitron; margin-bottom:20px;">MỎ NGỌC</h2>
         <div class="input-grp"><input type="text" id="phone" placeholder="Số điện thoại"></div>
@@ -75,14 +72,12 @@
         <button class="btn" style="background:#1e355c; color:#fff;" onclick="handleAuth(true)">ĐĂNG KÝ</button>
     </div>
 
-    <!-- CONTENT -->
     <div class="content-area" id="appContent">
         <div class="header">
             <div style="font-family:Orbitron; color:var(--gold); font-size:20px;">MỎ NGỌC</div>
             <div class="balance-badge">🪙 <span id="userBalance">0</span></div>
         </div>
 
-        <!-- VIEW: GAME -->
         <div class="view active" id="view-game">
             <div class="timer-bar">Thời gian: <span id="timer">15</span>s</div>
             <div class="mines-grid" id="minesGrid"></div>
@@ -96,7 +91,6 @@
             </div>
         </div>
 
-        <!-- VIEW: DASHBOARD (Nạp/Rút) -->
         <div class="view" id="view-dash">
             <div class="dash-card">
                 <h3>NẠP TIỀN (BANK)</h3>
@@ -111,7 +105,6 @@
             </div>
         </div>
 
-        <!-- VIEW: HƯỚNG DẪN & TOP -->
         <div class="view" id="view-guide">
             <div class="dash-card" style="text-align:left;">
                 <h3>HƯỚNG DẪN CHƠI</h3>
@@ -122,17 +115,14 @@
                 <p style="font-size:12px; color:#888;">Đang cập nhật...</p>
             </div>
         </div>
-
     </div>
 
-    <!-- BOTTOM NAV -->
     <div class="bottom-nav" id="bottomNav" style="display:none;">
         <div class="nav-item active" onclick="switchView('view-game', this)"><i>🎮</i>Game</div>
         <div class="nav-item" onclick="switchView('view-dash', this)"><i>💰</i>Nạp/Rút</div>
         <div class="nav-item" onclick="switchView('view-guide', this)"><i>📜</i>H.Dẫn</div>
     </div>
 
-    <!-- FLOATING CHAT -->
     <div class="chat-bubble" id="chatBubble">💬</div>
     <div class="chat-panel" id="chatPanel">
         <div class="chat-header">
@@ -153,7 +143,6 @@
         let selectedCells = [];
         let gameActive = false;
 
-        // Auth & Setup
         async function handleAuth(isRegister) {
             const phone = document.getElementById('phone').value;
             const pass = document.getElementById('password').value;
@@ -183,7 +172,6 @@
             }).catch(() => {});
         }
 
-        // Navigation
         function switchView(viewId, el) {
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
             document.getElementById(viewId).classList.add('active');
@@ -191,7 +179,6 @@
             el.classList.add('active');
         }
 
-        // Game Logic
         function initBoard() {
             const grid = document.getElementById('minesGrid');
             grid.innerHTML = '';
@@ -203,8 +190,9 @@
             }
         }
 
+        // FIX LỖI: Chỉ chặn khi gameActive = true
         function toggleCell(index, el) {
-            if (!gameActive) return;
+            if (gameActive) return; 
             if (selectedCells.includes(index)) {
                 selectedCells = selectedCells.filter(c => c !== index);
                 el.classList.remove('selected'); el.innerText = '?';
@@ -225,7 +213,6 @@
             socket.emit('place_bet', { token, betAmount: bet, selectedCells });
         }
 
-        // Socket Events
         socket.on('timer', (t) => { document.getElementById('timer').innerText = t; });
         
         socket.on('new_round', () => {
@@ -244,6 +231,12 @@
                 if (data.win) alert(`🎉 THẮNG! Nhận: ${data.winAmount.toLocaleString()} xu`);
                 else alert(`💥 NỔ BOM! Mất tiền cược.`);
                 updateBalance();
+                
+                // Reset trạng thái sau khi có kết quả
+                gameActive = false;
+                document.getElementById('btnStart').disabled = false;
+                selectedCells = [];
+                initBoard();
             }, 500);
         });
 
@@ -259,7 +252,6 @@
             }
         }
 
-        // Nạp / Rút
         async function requestTxn(type, inputId) {
             const amount = parseInt(document.getElementById(inputId).value);
             if (!amount || amount < 10000) return alert('Số tiền tối thiểu 10.000đ');
@@ -273,7 +265,6 @@
             document.getElementById(inputId).value = '';
         }
 
-        // History
         async function fetchHistory() {
             const res = await fetch('/api/history');
             updateHistoryUI(await res.json());
@@ -311,13 +302,9 @@
         function onMouseUp() {
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
-            // Nếu không kéo (chỉ click), mở chat
-            if (!isDragging) {
-                panel.classList.toggle('active');
-            }
+            if (!isDragging) panel.classList.toggle('active');
         }
 
-        // Chat Logic
         function sendChat() {
             const msg = document.getElementById('chatInput').value;
             if (!msg) return;
