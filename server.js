@@ -15,22 +15,13 @@ app.use(express.static('public'));
 const JWT_SECRET = "bi_mat_cua_nha_cai_lc97";
 const ROUND_TIME = 15;
 
-// ================= DATABASE =================
 const db = new sqlite3.Database('./database.sqlite');
 db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, phone TEXT UNIQUE, password TEXT, balance INTEGER DEFAULT 0
-    )`);
-    db.run(`CREATE TABLE IF NOT EXISTS history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, phone TEXT, bet_amount INTEGER, win_amount INTEGER, result TEXT, time DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-    // Bảng lưu lệnh nạp/rút
-    db.run(`CREATE TABLE IF NOT EXISTS transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, phone TEXT, type TEXT, amount INTEGER, status TEXT DEFAULT 'PENDING', time DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
+    db.run(`CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, phone TEXT UNIQUE, password TEXT, balance INTEGER DEFAULT 0)`);
+    db.run(`CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, phone TEXT, bet_amount INTEGER, win_amount INTEGER, result TEXT, time DATETIME DEFAULT CURRENT_TIMESTAMP)`);
+    db.run(`CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, phone TEXT, type TEXT, amount INTEGER, status TEXT DEFAULT 'PENDING', time DATETIME DEFAULT CURRENT_TIMESTAMP)`);
 });
 
-// ================= GAME STATE =================
 let currentRound = { timeLeft: ROUND_TIME, bombs: [], bombCount: 5, status: 'playing', adminCustomBombs: null };
 
 function generateBombs(count) {
@@ -52,12 +43,12 @@ setInterval(() => {
         io.emit('round_ended', { bombs: currentRound.bombs });
         setTimeout(() => {
             currentRound = { timeLeft: ROUND_TIME, bombs: generateBombs(currentRound.bombCount), bombCount: currentRound.bombCount, status: 'playing', adminCustomBombs: null };
-            io.emit('new_round', { roundId: Date.now() });
+            io.emit('new_round');
         }, 3000);
     }
 }, 1000);
 
-// ================= API USER =================
+// --- API USER ---
 app.post('/api/auth', async (req, res) => {
     const { phone, password, isRegister } = req.body;
     db.get(`SELECT * FROM users WHERE phone = ?`, [phone], async (err, user) => {
@@ -74,23 +65,29 @@ app.post('/api/auth', async (req, res) => {
     });
 });
 
+app.get('/api/me', (req, res) => {
+    try {
+        const { phone } = jwt.verify(req.headers.authorization, JWT_SECRET);
+        db.get(`SELECT balance FROM users WHERE phone = ?`, [phone], (err, row) => {
+            res.json({ balance: row ? row.balance : 0 });
+        });
+    } catch(e) { res.status(401).send(); }
+});
+
 app.get('/api/history', (req, res) => {
     db.all(`SELECT phone, bet_amount, win_amount, result FROM history ORDER BY id DESC LIMIT 15`, [], (err, rows) => res.json(rows));
 });
 
-// API Nạp / Rút (Gửi yêu cầu)
 app.post('/api/transaction', (req, res) => {
-    const { token, type, amount } = req.body;
     try {
-        const { phone } = jwt.verify(token, JWT_SECRET);
-        db.run(`INSERT INTO transactions (phone, type, amount) VALUES (?, ?, ?)`, [phone, type, amount], function() {
+        const { phone } = jwt.verify(req.body.token, JWT_SECRET);
+        db.run(`INSERT INTO transactions (phone, type, amount) VALUES (?, ?, ?)`, [phone, req.body.type, req.body.amount], function() {
             res.json({ status: 'ok', message: 'Đã gửi yêu cầu, chờ Admin duyệt!' });
         });
     } catch (e) { res.status(401).json({ error: 'Lỗi xác thực' }); }
 });
 
-// ================= API ADMIN (BÍ MẬT) =================
-// 1. Chỉnh Bom & Xem Trạng thái
+// --- API ADMIN ---
 app.post('/api/internal/system-sync', (req, res) => {
     const { bombs, bombCount } = req.body;
     if (bombs) {
@@ -104,32 +101,27 @@ app.post('/api/internal/system-sync', (req, res) => {
 });
 app.get('/api/internal/system-status', (req, res) => res.json(currentRound));
 
-// 2. Quản lý User (Cộng/Trừ tiền)
 app.post('/api/internal/user-balance', (req, res) => {
-    const { phone, amount } = req.body; // amount có thể âm hoặc dương
+    const { phone, amount } = req.body;
     db.run(`UPDATE users SET balance = balance + ? WHERE phone = ?`, [amount, phone], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        if (this.changes === 0) return res.status(404).json({ error: 'Không tìm thấy user' });
-        // Báo cho user cập nhật số dư nếu đang online
+        if (err || this.changes === 0) return res.status(404).json({ error: 'Lỗi hoặc không thấy user' });
         io.emit('force_update_balance'); 
-        res.json({ status: 'ok', message: 'Đã cập nhật số dư!' });
+        res.json({ status: 'ok', message: 'Đã cập nhật!' });
     });
 });
 
-// 3. Duyệt Nạp/Rút
 app.get('/api/internal/transactions', (req, res) => {
     db.all(`SELECT * FROM transactions WHERE status = 'PENDING' ORDER BY id DESC`, [], (err, rows) => res.json(rows));
 });
+
 app.post('/api/internal/approve-txn', (req, res) => {
-    const { id, action } = req.body; // action: 'approve' | 'reject'
+    const { id, action } = req.body;
     db.get(`SELECT * FROM transactions WHERE id = ?`, [id], (err, txn) => {
         if (!txn) return res.status(404).json({ error: 'Không tìm thấy' });
-        
         let newStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
         db.run(`UPDATE transactions SET status = ? WHERE id = ?`, [newStatus, id]);
 
         if (action === 'approve') {
-            // Nếu là nạp, cộng tiền. Nếu là rút, trừ tiền.
             let amount = txn.type === 'DEPOSIT' ? txn.amount : -txn.amount;
             db.run(`UPDATE users SET balance = balance + ? WHERE phone = ?`, [amount, txn.phone]);
             io.emit('force_update_balance');
@@ -138,19 +130,7 @@ app.post('/api/internal/approve-txn', (req, res) => {
     });
 });
 
-// API Lấy số dư mới nhất
-app.get('/api/me', (req, res) => {
-    try {
-        const token = req.headers.authorization;
-        const { phone } = jwt.verify(token, JWT_SECRET);
-        db.get(`SELECT balance FROM users WHERE phone = ?`, [phone], (err, row) => {
-            if(row) res.json({ balance: row.balance }); else res.status(404).send();
-        });
-    } catch(e) { res.status(401).send(); }
-});
-
-
-// ================= SOCKET.IO =================
+// --- SOCKET.IO ---
 io.on('connection', (socket) => {
     socket.on('place_bet', (data) => {
         const { token, betAmount, selectedCells } = data;
@@ -166,12 +146,9 @@ io.on('connection', (socket) => {
                 let winAmount = isBomb ? 0 : betAmount * 1.5;
 
                 if (winAmount > 0) db.run(`UPDATE users SET balance = balance + ? WHERE phone = ?`, [winAmount, phone]);
-                
-                db.run(`INSERT INTO history (phone, bet_amount, win_amount, result) VALUES (?, ?, ?, ?)`, 
-                       [phone, betAmount, winAmount, isBomb ? 'LOSE' : 'WIN']);
+                db.run(`INSERT INTO history (phone, bet_amount, win_amount, result) VALUES (?, ?, ?, ?)`, [phone, betAmount, winAmount, isBomb ? 'LOSE' : 'WIN']);
 
                 socket.emit('game_result', { win: !isBomb, winAmount, bombs: currentRound.bombs });
-                
                 db.all(`SELECT phone, bet_amount, win_amount, result FROM history ORDER BY id DESC LIMIT 15`, [], (err, rows) => io.emit('history_update', rows));
             });
         } catch (e) { socket.emit('error_msg', 'Lỗi xác thực'); }
