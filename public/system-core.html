@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>ADMIN CORE</title>
+    <style>
+        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; display: flex; gap: 20px; }
+        .panel { flex: 1; border: 1px solid #0f0; padding: 20px; background: #111; border-radius: 8px; }
+        h2 { text-align: center; border-bottom: 1px solid #0f0; padding-bottom: 10px; margin-bottom: 20px;}
+        input, button { width: 100%; padding: 10px; margin-bottom: 10px; background: #000; border: 1px solid #0f0; color: #0f0; font-family: inherit; font-size: 14px; }
+        button { cursor: pointer; font-weight: bold; }
+        button:hover { background: #0f0; color: #000; }
+        .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-bottom: 20px; }
+        .cell { aspect-ratio: 1; border: 1px solid #0f0; display: flex; justify-content: center; align-items: center; cursor: pointer; font-size: 12px; }
+        .cell.active { background: #f00; color: #fff; border-color: #f00; }
+        .red { color: #f00; }
+        .list-item { border-bottom: 1px dashed #0f0; padding: 10px 0; font-size: 13px;}
+        .btn-small { width: auto; padding: 5px 10px; display: inline-block; margin-right: 5px;}
+    </style>
+</head>
+<body>
+    <!-- PANEL 1: BOM CONTROL -->
+    <div class="panel">
+        <h2>BOM SETUP</h2>
+        <p>Time left: <span id="timeLeft" style="color:#ff0;">15</span>s</p>
+        <p>Click chọn các ô để đặt bom:</p>
+        <div class="grid" id="bombGrid"></div>
+        
+        <button onclick="applyBombs()" style="background:#f00; color:#fff; border-color:#f00;">ÉP BOM NGAY</button>
+        
+        <p>Hoặc Random:</p>
+        <input type="number" id="bombCount" value="5" min="1" max="20">
+        <button onclick="randomBombs()">RANDOM BOM</button>
+    </div>
+
+    <!-- PANEL 2: USER & TXN -->
+    <div class="panel">
+        <h2>USER MANAGEMENT</h2>
+        <input type="text" id="userPhone" placeholder="Nhập SĐT user...">
+        <input type="number" id="userAmount" placeholder="Số tiền (VD: 50000 hoặc -50000)">
+        <button onclick="adjustBalance()">CỘNG / TRỪ TIỀN</button>
+
+        <h2 style="margin-top: 30px;">PENDING TRANSACTIONS</h2>
+        <div id="txnList"></div>
+    </div>
+
+    <script>
+        let selectedBombs = [];
+
+        // Lấy trạng thái liên tục
+        async function pollStatus() {
+            const res = await fetch('/api/internal/system-status');
+            const data = await res.json();
+            
+            document.getElementById('timeLeft').innerText = data.timeLeft;
+            
+            // Nếu admin chưa ép bom, hiển thị bom hiện tại
+            if (selectedBombs.length === 0) {
+                selectedBombs = [...data.bombs];
+                renderBombGrid();
+            }
+        }
+
+        function renderBombGrid() {
+            const grid = document.getElementById('bombGrid');
+            grid.innerHTML = '';
+            for (let i = 0; i < 25; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                if (selectedBombs.includes(i)) {
+                    cell.classList.add('active');
+                    cell.innerText = '💣';
+                }
+                cell.onclick = () => {
+                    if (selectedBombs.includes(i)) {
+                        selectedBombs = selectedBombs.filter(x => x !== i);
+                    } else {
+                        selectedBombs.push(i);
+                    }
+                    renderBombGrid();
+                };
+                grid.appendChild(cell);
+            }
+        }
+
+        async function applyBombs() {
+            if (selectedBombs.length === 0) return alert('Chọn ít nhất 1 ô!');
+            const res = await fetch('/api/internal/system-sync', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bombs: selectedBombs })
+            });
+            alert((await res.json()).message);
+            pollStatus();
+        }
+
+        async function randomBombs() {
+            const count = parseInt(document.getElementById('bombCount').value);
+            const res = await fetch('/api/internal/system-sync', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bombCount: count })
+            });
+            alert((await res.json()).message);
+            selectedBombs = [];
+            setTimeout(pollStatus, 500);
+        }
+
+        async function adjustBalance() {
+            const phone = document.getElementById('userPhone').value;
+            const amount = parseInt(document.getElementById('userAmount').value);
+            if (!phone || !amount) return alert('Nhập đủ thông tin!');
+
+            const res = await fetch('/api/internal/user-balance', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone, amount })
+            });
+            const data = await res.json();
+            alert(data.message || data.error);
+        }
+
+        // Duyệt nạp/rút
+        async function loadTxns() {
+            const res = await fetch('/api/internal/transactions');
+            const data = await res.json();
+            const list = document.getElementById('txnList');
+            
+            if (data.length === 0) { list.innerHTML = '<p>Không có lệnh chờ.</p>'; return; }
+
+            list.innerHTML = data.map(t => `
+                <div class="list-item">
+                    <div>User: <b>${t.phone}</b> | ${t.type} : <span class="red">${t.amount}</span></div>
+                    <button class="btn-small" onclick="handleTxn(${t.id}, 'approve')" style="background:#0f0; color:#000;">Duyệt</button>
+                    <button class="btn-small" onclick="handleTxn(${t.id}, 'reject')" style="background:#f00; color:#fff;">Từ Chối</button>
+                </div>
+            `).join('');
+        }
+
+        async function handleTxn(id, action) {
+            const res = await fetch('/api/internal/approve-txn', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, action })
+            });
+            if(res.ok) { alert('Thành công!'); loadTxns(); }
+        }
+
+        setInterval(pollStatus, 1000);
+        setInterval(loadTxns, 3000);
+        
+        pollStatus();
+        loadTxns();
+    </script>
+</body>
+</html>
